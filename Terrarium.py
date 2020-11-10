@@ -43,15 +43,19 @@ def setup_stop_button():
 
 # Function which will either stop or start monitoring the terrarium environment
 def stop_start_monitoring(channel):
-    global stop, printed
+    global stop, start_time
 
     # Toggle the switch state to determine whether or not the user was stopping or starting monitoring
     stop = False if stop else True
-
     if (stop):
-        print('stopping the monitoring')
+        pass
     else:
-        print('starting the monitoring')
+        start_time = time.time()
+
+def trigger_buzzer():
+    GPIO.output(buzzer, True)
+    time.sleep(0.2)
+    GPIO.output(buzzer, False)
 
 # We store the amount of samples that are in the EEPROM memory in the first byte
 def fetch_sample_count():
@@ -100,13 +104,17 @@ def setup():
 def read_temp_value():
     samples_printed = 0
     while True:
-        if (int(time.time() - start_time) % 5 == 0):
-            if ((samples_printed + 1) % 5 == 0 or samples_printed == 0):
-                print_output(calculate_temp(), '*')
-            else:
-                print_output(calculate_temp(), '')
-            samples_printed += 1
-        time.sleep(1)
+        if (not stop):
+            if (int(time.time() - start_time) % 5 == 0):
+                if ((samples_printed + 1) % 5 == 0 or samples_printed == 0):
+                    print_output(calculate_temp(), '*')
+                    trigger_buzzer()
+                else:
+                    print_output(calculate_temp(), '')
+                samples_printed += 1
+            time.sleep(1)
+
+        
         
 
 
