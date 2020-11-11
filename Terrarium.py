@@ -9,12 +9,18 @@ import ES2EEPROMUtils
 import os
 import threading
 import RPi.GPIO as GPIO
+import blynklib
+
+BLYNK_AUTH = 'jrpYa2gkJ40TkGiC6RdE8aX7rQpYhQur' 
+# base lib init
+blynk = blynklib.Blynk(BLYNK_AUTH)
 
 # Set of globals
 buzzer = 22         # We are using BCM numbering convention
 stop_button = 27
 toggle_button = 17
 
+interval = 5
 # This will be used to determine whether the system should stop monitoring the terrarium environment
 # It is defaulted to false as initially the system is monitoring
 stop = False
@@ -37,7 +43,7 @@ chan = AnalogIn(mcp, MCP.P0)
 #create eeprom object
 eeprom = ES2EEPROMUtils.ES2EEPROM()
 
-def setup_stop_button():
+def setup_buttons():
     GPIO.setup(stop_button, GPIO.IN, pull_up_down=GPIO.PUD_DOWN)
     GPIO.setup(toggle_button, GPIO.IN, pull_up_down=GPIO.PUD_DOWN)
     # Detect rising edge since we are using a pull down resistor
@@ -55,17 +61,31 @@ def stop_start_monitoring(channel):
     else:
         start_time = time.time()
 
+# function that toggles read interval between 2, 5 and 10s
+def toggle_read_interval():
+    global interval
+    if (interval == 5):
+        interval = 10
+    elif (interval == 10):
+        interval = 2
+    elif (interval == 2):
+        interval = 5
+
+# Function that will beep the buzzer 
 def trigger_buzzer():
     GPIO.output(buzzer, True)
     time.sleep(0.2)
     GPIO.output(buzzer, False)
 
+
+# Function that saves the temperature recording as well as the system time stamp
 def store_sample(hour, minute, second, temp):
     old_data  = fetch_samples()
     old_data.extend([hour,minute,second,temp])
     old_data = old_data[4:len(old_data)] #slice off first item
     eeprom.write_block(0,old_data)
 
+# function that fetches first 20 samples from eeprom
 def fetch_samples():
     # Get the samples
     samples = eeprom.read_block(0, 20*4)
@@ -89,38 +109,46 @@ def setup_buzzer():
 
 def setup():
     setup_buzzer()
-    setup_stop_button()
+    setup_buttons()
 
 def read_temp_value():
-    samples_printed = 0
+    buzz_trigger = 0
     while True:
         if (not stop):
-            if (int(time.time() - start_time) % 5 == 0):
-                if ((samples_printed + 1) % 5 == 0 or samples_printed == 0):
-                    print_output(calculate_temp(), '*')
+            if (int(time.time() - start_time) % interval == 0):
+                if (buzz_trigger == 0):
+                    print_and_store_output(calculate_temp(), '*')
                     trigger_buzzer()
+                    buzz_trigger = 4
                 else:
-                    print_output(calculate_temp(), '')
-                samples_printed += 1
+                    print_and_store_output(calculate_temp(), '')
+                    buzz_trigger -= 1
                 
             time.sleep(1)
 
         
-def print_output(temp, buzzer=''):
+def print_and_store_output(temp, buzzer=''):
     curr_time = time.localtime() 
     curr_clock = time.strftime("%H:%M:%S", curr_time)
     syst_time = time.time() - sys_time
     syst_time = time.strftime('%H:%M:%S', time.gmtime(syst_time))
     hour,minute,second = get_time_values(syst_time)
+    # save the sample
     store_sample(int(hour), int(minute), int(second), int(temp))
     print('{0}  {1}   {2:.0f} C {3}'.format(curr_clock, syst_time, temp, buzzer))
     
-    
+def blynk_app():
+    while True:
+        blynk.run()
 
 if __name__ == "__main__":
     thread = threading.Thread(target=read_temp_value)
     thread.daemon = True #make thread die when program dies
     thread.start()
+
+    blynk_thread = threading.Thread(target=blynk_app)
+    blynk_thread.daemon = True
+    blynk_thread.start()
     try:
         setup()
         print('Time      Sys Timer  Temp  Buzzer')
