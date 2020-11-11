@@ -48,7 +48,7 @@ def setup_buttons():
     GPIO.setup(toggle_button, GPIO.IN, pull_up_down=GPIO.PUD_DOWN)
     # Detect rising edge since we are using a pull down resistor
     GPIO.add_event_detect(stop_button, GPIO.RISING, callback=stop_start_monitoring, bouncetime=200)
-    GPIO.add_event_detect(toggle_button, GPIO.RISING, callback=print_samples, bouncetime=200)
+    GPIO.add_event_detect(toggle_button, GPIO.RISING, callback=toggle_read_interval, bouncetime=200)
 
 # Function which will either stop or start monitoring the terrarium environment
 def stop_start_monitoring(channel):
@@ -62,7 +62,7 @@ def stop_start_monitoring(channel):
         start_time = time.time()
 
 # function that toggles read interval between 2, 5 and 10s
-def toggle_read_interval():
+def toggle_read_interval(channel):
     global interval
     if (interval == 5):
         interval = 10
@@ -123,9 +123,8 @@ def read_temp_value():
                 else:
                     print_and_store_output(calculate_temp(), '')
                     buzz_trigger -= 1
-                
             time.sleep(1)
-
+            
         
 def print_and_store_output(temp, buzzer=''):
     curr_time = time.localtime() 
