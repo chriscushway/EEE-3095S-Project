@@ -1,3 +1,4 @@
+ 
 # Import libraries
 import busio
 import digitalio
@@ -12,7 +13,7 @@ import RPi.GPIO as GPIO
 import blynklib
 
 BLYNK_AUTH = 'jrpYa2gkJ40TkGiC6RdE8aX7rQpYhQur' 
-# base lib init
+# # base lib init
 blynk = blynklib.Blynk(BLYNK_AUTH)
 
 # Set of globals
@@ -61,8 +62,7 @@ def stop_start_monitoring(channel):
     else:
         start_time = time.time()
 
-# function that toggles read interval between 2, 5 and 10s
-def toggle_read_interval(channel):
+def toggle_interval():
     global interval
     if (interval == 5):
         interval = 10
@@ -70,6 +70,10 @@ def toggle_read_interval(channel):
         interval = 2
     elif (interval == 2):
         interval = 5
+
+# function that toggles read interval between 2, 5 and 10s
+def toggle_read_interval(channel):
+    toggle_interval()
 
 # Function that will beep the buzzer 
 def trigger_buzzer():
@@ -118,10 +122,12 @@ def read_temp_value():
             if (int(time.time() - start_time) % interval == 0):
                 if (buzz_trigger == 0):
                     print_and_store_output(calculate_temp(), '*')
+                    blynk.virtual_write(4, 255)
                     trigger_buzzer()
                     buzz_trigger = 4
                 else:
                     print_and_store_output(calculate_temp(), '')
+                    blynk.virtual_write(4, 0)
                     buzz_trigger -= 1
             time.sleep(1)
             
@@ -135,14 +141,28 @@ def print_and_store_output(temp, buzzer=''):
     # save the sample
     store_sample(int(hour), int(minute), int(second), int(temp))
     print('{0}  {1}   {2:.0f} C {3}'.format(curr_clock, syst_time, temp, buzzer))
+    blynk.virtual_write(5, '{0}  {1}   {2:.0f} C {3}'.format(curr_clock, syst_time, temp, buzzer))
 
 @blynk.handle_event('read V0')
 def read_virtual_pin_handler(pin):
     blynk.virtual_write(pin, int(calculate_temp()))
 
+@blynk.handle_event('write V1')
+def write_virtual_pin_handler(pin, value):
+    if(int(value[0]) == 1):
+        toggle_interval()
+        time.sleep(0.1)
+        blynk.virtual_write(2, str(interval) + ' s')
+    
+@blynk.handle_event('write V3')
+def write_virtual_pin_handler(pin, value):
+    global stop
+    stop = False if stop else True
+
 def blynk_app():
     while True:
         blynk.run()
+
 
 if __name__ == "__main__":
     thread = threading.Thread(target=read_temp_value)
