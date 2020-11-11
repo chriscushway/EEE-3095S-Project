@@ -135,7 +135,11 @@ def print_and_store_output(temp, buzzer=''):
     # save the sample
     store_sample(int(hour), int(minute), int(second), int(temp))
     print('{0}  {1}   {2:.0f} C {3}'.format(curr_clock, syst_time, temp, buzzer))
-    
+
+@blynk.handle_event('read V0')
+def read_virtual_pin_handler(pin):
+    blynk.virtual_write(pin, int(calculate_temp()))
+
 def blynk_app():
     while True:
         blynk.run()
